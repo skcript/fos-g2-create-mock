@@ -1,7 +1,8 @@
-// Proxy to FeatureOS create-post API.
+// Proxy to FeatureOS create-post API. Edge runtime.
 // Docs: https://developers.featureos.app/docs/posts/create-post
 // Browser never talks to FeatureOS directly — the API key passes through here,
 // keeping it out of CORS / client logs and letting us shape the request.
+export const config = { runtime: "edge" };
 
 const FEATUREOS_URL = "https://api.featureos.app/api/v3/feature_requests";
 
@@ -10,7 +11,7 @@ function mask(v) {
 }
 
 // Build the equivalent curl so the UI can render it as live docs.
-// Auth via API-KEY (org-level) or Authorization JWT (user-specific SSO).
+// API-KEY always sent; Bearer JWT added when present (user-specific auth).
 function buildCurl({ apiKey, jwt, body }) {
   const lines = [
     `curl -X POST '${FEATUREOS_URL}' \\`,
@@ -22,23 +23,30 @@ function buildCurl({ apiKey, jwt, body }) {
   return lines.join("\n");
 }
 
-export default async function handler(req, res) {
+const json = (data, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+export default async function handler(req) {
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return json({ error: "Method not allowed" }, 405);
   }
 
-  const { apiKey, jwt, title, description, bucket_id, tag_ids, state_id } = req.body || {};
+  let payload;
+  try {
+    payload = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
 
-  if (!apiKey) {
-    return res.status(400).json({ error: "Missing FeatureOS API key" });
-  }
-  if (!title) {
-    return res.status(400).json({ error: "Missing title" });
-  }
-  if (!bucket_id) {
-    return res.status(400).json({ error: "Missing bucket_id (board id)" });
-  }
+  const { apiKey, jwt, title, description, bucket_id, tag_ids, state_id } =
+    payload || {};
+
+  if (!apiKey) return json({ error: "Missing FeatureOS API key" }, 400);
+  if (!title) return json({ error: "Missing title" }, 400);
+  if (!bucket_id) return json({ error: "Missing bucket_id (board id)" }, 400);
 
   // Only forward defined fields.
   const body = { title, bucket_id: Number(bucket_id) };
@@ -69,12 +77,9 @@ export default async function handler(req, res) {
       data = { raw: text };
     }
 
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: data, curl });
-    }
-
-    return res.status(200).json({ data, curl });
+    if (!upstream.ok) return json({ error: data, curl }, upstream.status);
+    return json({ data, curl }, 200);
   } catch (err) {
-    return res.status(502).json({ error: String(err), curl });
+    return json({ error: String(err), curl }, 502);
   }
 }
