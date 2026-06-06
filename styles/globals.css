@@ -168,8 +168,9 @@ a {
   font-size: 12px;
   line-height: 1.5;
   color: #b8c0d0;
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
 }
 
 .section-title {

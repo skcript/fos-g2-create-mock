@@ -6,20 +6,17 @@ export const config = { runtime: "edge" };
 
 const FEATUREOS_URL = "https://api.featureos.app/api/v3/feature_requests";
 
-function mask(v) {
-  return v && v.length > 8 ? v.slice(0, 4) + "..." + v.slice(-4) : v;
-}
-
-// Build the equivalent curl so the UI can render it as live docs.
+// Build the full equivalent curl so the UI can render it as live docs.
 // API-KEY always sent; Bearer JWT added when present (user-specific auth).
+// Pretty-prints the JSON body so the -d payload is readable.
 function buildCurl({ apiKey, jwt, body }) {
   const lines = [
     `curl -X POST '${FEATUREOS_URL}' \\`,
-    `  -H 'API-KEY: ${apiKey ? mask(apiKey) : "YOUR_API_KEY"}' \\`,
+    `  -H 'API-KEY: ${apiKey || "YOUR_API_KEY"}' \\`,
   ];
-  if (jwt) lines.push(`  -H 'Authorization: Bearer ${mask(jwt)}' \\`);
+  if (jwt) lines.push(`  -H 'Authorization: Bearer ${jwt}' \\`);
   lines.push(`  -H 'Content-Type: application/json' \\`);
-  lines.push(`  -d '${JSON.stringify(body)}'`);
+  lines.push(`  -d '${JSON.stringify(body, null, 2)}'`);
   return lines.join("\n");
 }
 
